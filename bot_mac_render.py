@@ -8,6 +8,8 @@ from telegram.ext import (
     ApplicationBuilder, CommandHandler, MessageHandler, filters,
     ContextTypes, ConversationHandler
 )
+from datetime import datetime
+import json
 
 load_dotenv()
 TOKEN = os.environ.get("BOT_TOKEN")
@@ -23,8 +25,6 @@ store_keyboard = [["PC1", "BS1"]]
 groomer_keyboard = [["Davide Raffi", "Valentina Peveri"],
                     ["Manar Orabi", "Stefani Petrova"],
                     ["Asia Aronica"]]
-
-zones = ["Testa", "Zampe", "Tronco", "Coda"]
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_data.clear()
@@ -64,7 +64,7 @@ async def save_photo(update: Update, context: ContextTypes.DEFAULT_TYPE, key: st
     os.makedirs("photos", exist_ok=True)
     filename = f"{user_data['dog_name']}_{key}.jpg".replace(" ", "_")
     await file.download_to_drive(os.path.join("photos", filename))
-    user_data[key] = filename
+    user_data[key] = f"photos/{filename}"
     return next_state
 
 async def get_checkin_testa(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -97,11 +97,6 @@ async def get_checkout_tronco(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 async def get_checkout_coda(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await save_photo(update, context, "checkout_coda", ConversationHandler.END)
-    
-    from datetime import datetime
-    import json
-
-    # Costruzione del dizionario da salvare
     dati = {
         "data": datetime.now().isoformat(),
         "negozio": user_data.get("store"),
@@ -122,22 +117,16 @@ async def get_checkout_coda(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "coda": user_data.get("checkout_coda")
         }
     }
-
-    # Salvataggio nel file data.json
     try:
         with open("data.json", "r", encoding="utf-8") as f:
             contenuto = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         contenuto = []
-
     contenuto.append(dati)
-
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(contenuto, f, ensure_ascii=False, indent=4)
-
     await update.message.reply_text("💾 Dati salvati in 'data.json' ✅\nGrazie per il tuo lavoro! 🐶")
     return ConversationHandler.END
-    
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("❌ Operazione annullata.")
@@ -145,7 +134,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def main():
     app = ApplicationBuilder().token(TOKEN).build()
-
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -165,14 +153,13 @@ async def main():
         },
         fallbacks=[CommandHandler("fine", cancel)]
     )
-
     app.add_handler(conv)
     await app.run_polling()
 
 if __name__ == "__main__":
-    if sys.platform == "darwin":
-        import nest_asyncio
-        nest_asyncio.apply()
-        asyncio.get_event_loop().run_until_complete(main())
-    else:
-        asyncio.run(main())
+    import nest_asyncio
+    nest_asyncio.apply()
+    import asyncio
+    loop = asyncio.get_event_loop()
+    loop.create_task(main())
+    loop.run_forever()
